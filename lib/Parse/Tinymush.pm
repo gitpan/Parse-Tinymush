@@ -4,12 +4,16 @@ use 5.006;
 use strict;
 use warnings;
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 use constant FN_VARARG => -1;
 
 use constant CODE_REF => 0;
 use constant ARG_COUNT => 1;
+use constant FNC_FLAGS => 2;
+
+use constant FNC_NO_FLAGS => 0;
+use constant FNC_PASS_NAME => 1;
 
 my $options = {
   debug => 0,
@@ -315,6 +319,12 @@ sub parse_function {
     return "#-1 FUNCTION (\U$func_name\E) NOT FOUND";
   }
 
+# Clean out empty arguments
+  while ( $argc && $funcargs[$argc - 1] eq '' ) {
+    CORE::pop @funcargs;
+    $argc--;
+  }
+
   my $min_arg = FN_VARARG;
   my $max_arg = FN_VARARG;
   if ( ref($func_info->[ARG_COUNT]) eq 'ARRAY' ) {
@@ -336,6 +346,10 @@ sub parse_function {
     return $error;
   }
 
+  my $flags = $func_info->[FNC_FLAGS] || 0;
+  if ( $flags & FNC_PASS_NAME ) {
+    unshift @funcargs, $func_name;
+  }
   my $retval = $func_info->[CODE_REF]->(@funcargs);
   if ( $self->{options}->{debug} ) {
     print STDERR "Function return: value: $retval\n";
@@ -352,7 +366,7 @@ __END__
 
 =head1 NAME
 
-Parse::Tinymush - Perl extension for mimicing the tinymush parser
+Parse::Tinymush - A simple tinymush parser
 
 =head1 SYNOPSIS
 
@@ -371,7 +385,7 @@ written in perl.  This implementation comes with no built-in %-variables
 or functions, but they can be easily added by passing arguments to the 
 constructor.
 
-=head2 new
+=head2 new(OPTIONS)
 
 C<new> is the constructor.  It sets up various instance variables.  The 
 constructor takes a number of optional arguments:
@@ -382,7 +396,7 @@ constructor takes a number of optional arguments:
 
 This must be a reference to a hash with the form:
 
-  { function_name => [code_ref, argument_count] }
+  { function_name => [code_ref, argument_count, flags] }
 
 C<function_name> must be lowercase for the parser to work correctly.  
 C<argument_count> can be one of the following:
@@ -393,6 +407,23 @@ C<argument_count> can be one of the following:
 
 * An array ref, whose first entry is the minimum number of arguments 
 and second entry is the maximum number of arguments.
+
+The C<flags> field is optional.  The possible values for it are:
+
+* FNC_NO_FLAGS (0) - Same as not having any flags
+
+* FNC_PASS_NAME (1) - Pass the function name as the first argument to the 
+function.  This allows the same code to have different function names.  
+This is useful if you wish two functions to have similar features, but do 
+not want to repeat code.
+
+Example:
+
+  my $functions = {
+    "add" => [ \&fnc_add, 2, ],
+    "cat" => [ \&fnc_cat, -1, FNC_NO_FLAGS ],
+    "lcon" => [ \&fnc_lcon, [1, 2], FNC_PASS_NAME ],
+  };
 
 =item variables
 
@@ -417,7 +448,42 @@ character and the Parse::Tinymush object as $_[0] and $_[1]
 * An object with an C<eval> method, in which case the method is called and 
 passed the current character and the Parse::Tinymush object
 
+Example:
+
+  my @array = ( 0 .. 9 );
+  my %hash = ( y => "z" );
+
+  my $variables = {
+    "!" => $$,
+    "0" => \@array,
+    "y" => \%hash,
+    "l" => sub { getcwd; ),
+    "o" => HTML::Parser->new(),
+  };
+
+=item options
+
+C<options> is a hash reference of various parser options.  Currently, the 
+only supported option is C<space_compression>.
+
+* C<space_compression> - default: on - When on, multiple spaces will be 
+compressed into one space.
+
+Example:
+
+my $parser = Parse::Tinymush->new(options => {space_compression => 0});
+
 =back 4
+
+=head2 parse(STRING)
+
+C<parse> parses the given string, returning a string as the result.
+
+Example:
+
+my $output = $parser->parse("cat(1,2,3,4,5)");
+
+# $output = 12345
 
 =head2 EXPORT
 
@@ -425,7 +491,7 @@ None
 
 =head1 SEE ALSO
 
-The tinymush project: E<lt>http://www.godlike.com/tm3E<gt>
+The tinymush project: E<lt>http://www.godlike.com/tm3/E<gt>
 
 =head1 AUTHOR
 

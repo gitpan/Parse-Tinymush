@@ -6,7 +6,7 @@
 # change 'tests => 1' to 'tests => last_test_to_print';
 
 use Test;
-BEGIN { plan tests => 9 };
+BEGIN { plan tests => 10 };
 use Parse::Tinymush;
 ok(1); # If we made it this far, we're ok.
 
@@ -28,6 +28,7 @@ my $variables = {
 my $functions = {
   add => [sub { $_[0] + $_[1] }, 2],
   print => [sub { "@_" }, Parse::Tinymush::FN_VARARG],
+  func_name => [sub { $_[0] }, 0, Parse::Tinymush::FNC_PASS_NAME],
 };
 
 my $parser = Parse::Tinymush->new(
@@ -43,4 +44,4 @@ ok($parser->parse("print(%c,1,add(2,3))"), "test code 1 5",
   "Advanced function calls");
 ok($parser->parse("print({1,2,3,4,5})"), "1,2,3,4,5", 
   "Advanced braces");
-
+ok($parser->parse("func_name()"), "func_name", "Function name passing");
